@@ -1,0 +1,175 @@
+---
+title: "Predicting weight-lifting styles via Human Activity Recognition"
+author: "Abidur Rahman Mallik"
+date: "Monday, November 23, 2014"
+output: html_document
+---
+
+### Executive Summary
+Using devices such as Jawbone Up, Nike FuelBand, and Fitbit, it is now possible to collect a large amount of data about personal activity relatively inexpensively. One thing that people regularly do is quantify how much of a particular activity they do, but they rarely quantify how well they do it. In this project, our goal will be to use data from accelerometers on the belt, forearm, arm, and dumbell of 6 participants. They were asked to perform barbell lifts correctly and incorrectly in 5 different ways.
+
+Six young health participants were asked to perform one set of 10 repetitions of the Unilateral Dumbbell Biceps Curl in five different fashions: 
+
+- exactly according to the specification (Class A)
+- throwing the elbows to the front (Class B)
+- lifting the dumbbell only halfway (Class C)
+- lowering the dumbbell only halfway (Class D)
+- throwing the hips to the front (Class E)
+
+Class A corresponds to the specified execution of the exercise, while the other 4 classes correspond to common mistakes.
+
+The data for this project come from this source: <http://groupware.les.inf.puc-rio.br/har>
+
+The main objectives of this project are as follows
+
+- Predict the manner in which they did the exercise
+- Build a prediction model
+- Calculate the out of sample error.
+- Use the prediction model to predict 20 different test cases provided
+
+### Data Praparation
+This section describes about the libraries required, how to get the data and cleaning & processing the data.
+
+#### Laoding the Libraries
+
+At first, we load all libraries required.
+```{r,echo=TRUE,results='hide',cache=TRUE}
+library(knitr)
+options(width=120)
+library(caret)
+library(randomForest)
+library(pander)
+```
+#### Getting the Data
+
+The training data is available here: <https://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv>
+
+The test data is available here: <https://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv>
+
+Function for downloading the data:
+```{r,echo=TRUE}
+downloadDataset <- function(URL="", destFile="data.csv"){
+  if(!file.exists(destFile)){
+    download.file(URL, destFile)
+  }else{
+    message("Dataset Exists.")
+  }
+}
+```
+
+```{r,echo=TRUE}
+trainURL<-"http://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv"
+downloadDataset(trainURL, "training.csv")
+```
+
+```{r,echo=TRUE}
+testURL <-"http://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv"
+downloadDataset(testURL, "testing.csv")
+```
+
+#### Loading the data
+
+Next, we read the file using appropriate functions and load in the data using the following commands.
+
+```{r,echo=TRUE,cache=TRUE}
+training <- read.csv("training.csv",na.strings=c("NA",""))
+testing <-read.csv("testing.csv",na.strings=c("NA",""))
+dim(training)
+dim(testing)
+```
+
+#### Processing the data
+
+First, we check how many columns have NA values in the training and testing data and what is the quantity of NA values present.
+
+```{r,echo=TRUE,cache=TRUE}
+sum(is.na(training))
+sum(is.na(testing))
+```
+
+we are going to ignore NA values using the following code segment.
+```{r,echo=TRUE,cache=TRUE}
+# for training dataset
+columnNACounts <- colSums(is.na(training))        
+badColumns <- columnNACounts >= 19000             
+cleanTrainingdata <- training[!badColumns]        
+sum(is.na(cleanTrainingdata))                     
+cleanTrainingdata <- cleanTrainingdata[, c(7:60)] 
+
+# for testing dataset
+columnNACounts <- colSums(is.na(testing))        
+badColumns <- columnNACounts >= 20                
+cleanTestingdata <- testing[!badColumns]       
+sum(is.na(cleanTestingdata))                    
+cleanTestingdata <- cleanTestingdata[, c(7:60)]
+```
+
+### Exploratory Data Analysis
+
+We look at some summary statistics and frequency plot for the classe variable.
+```{r,echo=TRUE,cache=TRUE}
+e <- summary(cleanTrainingdata$classe)
+pandoc.table(e, style = "grid", justify = 'left', caption = '`classe` frequencies')
+plot(cleanTrainingdata$classe,col=rainbow(5),main = "`classe` frequency plot")
+```
+
+### Data partitioning
+
+First we partition the cleanTrainingdata dataset into training and testing data sets.
+
+```{r,echo=TRUE,cache=TRUE}
+partition <- createDataPartition(y = cleanTrainingdata$classe, p = 0.6, list = FALSE)
+trainingdata <- cleanTrainingdata[partition, ]
+testdata <- cleanTrainingdata[-partition, ]
+```
+
+#### Model building
+
+Now, using trainingdata dataset, we will build our model using the Random Forest machine learning technique.
+
+```{r,echo=TRUE,cache=TRUE}
+cvCtrl <- trainControl(method = "cv", number = 5, allowParallel = TRUE, verboseIter = TRUE)
+model <- train(classe ~ ., data = trainingdata, method = "rf", trControl = cvCtrl)
+```
+We build the model using 5-fold cross validation.
+
+#### In sample accuracy
+
+Here, we calculate the in sample accuracy which is the prediction accuracy of our model on the training data set.
+
+```{r,echo=TRUE,cache=TRUE}
+training_pred <- predict(model, trainingdata)
+confusionMatrix(training_pred, trainingdata$classe)
+```
+
+Thus from the above statistics we see that the in sample accuracy value is 1 which is 100%.
+
+#### Out of sample accuracy
+
+Here, we calculate the out of sample accuracy which is the prediction accuracy of our model on the testing data set.
+
+```{r,echo=TRUE,cache=TRUE}
+testing_pred <- predict(model, testdata)
+confusionMatrix(testing_pred, testdata$classe)
+```
+Thus from the above statistics we see that the out of sample accuracy value is 0.998 which is 99.8%.
+
+### Prediction Assignment
+Here, we apply the machine learning algorithm we built above, to each of the 20 test cases in the testing data set provided.
+
+
+```{r,echo=TRUE,cache=TRUE}
+answers <- predict(model, cleanTestingdata)
+answers <- as.character(answers)
+answers
+```
+### Conclusion
+
+We chose Random Forest as our machine learning algorithm for building our model because,
+
+- Balances bias and variance trade-offs by settling for a balanced model.
+- Can handle thousands of variables.
+- Builds a highly accurate classifier.   
+
+We also obtained a really good accuracy based on the statistics we obtained above.
+
